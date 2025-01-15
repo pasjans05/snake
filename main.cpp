@@ -26,7 +26,7 @@ enum direction_t {
 typedef struct {
 	int headX, headY;
 	int length;
-	int *tailX, *tailY;
+	int *tailX, *tailY; // the last segment of the tail is used only for drawing purposes
 	int colour;
 	direction_t direction;
 } snake_t;
@@ -195,6 +195,19 @@ void WallCheck(snake_t* snake)
 	}
 }
 
+// check whether the snake has collided with itself - return 1 if collision detected, 0 otherwise
+int SnakeCollisionCheck(snake_t* snake)
+{
+	for (int i = 0; i < snake->length - 1; i++) // note that the last segment of the tail is used only for drawing purposes
+	{
+		if (snake->headX == snake->tailX[i] && snake->headY == snake->tailY[i])
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+
 void SnakeMove(snake_t* snake)
 {
 	for (int i = snake->length - 1; i > 0; i--)
@@ -224,6 +237,8 @@ void SnakeMove(snake_t* snake)
 void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Texture* screenTexture, SDL_Renderer* renderer)
 {
 	int quit = 0;
+	char text[128];
+	int gameover = 0; // variable to trigger game over mode (no snake movement, only n and Esc inputs accepted)
 
 	// time management setup:
 	int t1, t2, frames;
@@ -234,32 +249,42 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 	// game loop:
 	while (!quit)
 	{
-		// time management:
-		t2 = SDL_GetTicks();
-		delta = (t2 - t1) * 0.001; // delta time in seconds
-		t1 = t2;
-		worldTime += delta; fpsTimer += delta; moveTimer += delta; // update timing variables
-		if (fpsTimer > 0.5) {
-			fps = frames * 2;
-			frames = 0;
-			fpsTimer -= 0.5;
+		if (!gameover) // status bar is not displayed and time doesn't run in game over mode
+		{
+			// time management:
+			t2 = SDL_GetTicks();
+			delta = (t2 - t1) * 0.001; // delta time in seconds
+			t1 = t2;
+			worldTime += delta; fpsTimer += delta; moveTimer += delta; // update timing variables
+			if (fpsTimer > 0.5) {
+				fps = frames * 2;
+				frames = 0;
+				fpsTimer -= 0.5;
+			}
+			
+			// status bar:
+			DrawFrame(screen, BLUE); // clear status bar
+			sprintf(text, "elapsed time = %.1lf s     %.0lf frames / s", worldTime, fps);
+			DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
+			sprintf(text, "implemented requirements: 123");
+			DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
 		}
-
-		// status bar:
-		char text[128];
-		DrawFrame(screen, BLUE); // clear status bar
-		sprintf(text, "elapsed time = %.1lf s     %.0lf frames / s", worldTime, fps);
-		DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
-		sprintf(text, "implemented requirements: 12");
-		DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
-
 
 		// snake movement:
 		if (moveTimer > SNAKE_SPEED)
 		{
 			WallCheck(snake); // check for collision with walls; adjust direction if necessary
 			SnakeMove(snake); // move the snake (update its position parameters)
-			SnakeDraw(screen, snake); // update snake's position on the screen
+			if (SnakeCollisionCheck(snake)) // check for collision with itself
+			{
+				DrawFrame(screen, BLUE);
+				sprintf(text, "GAME OVER! Press 'n' to start a new game, press 'Esc' to exit.");
+				DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
+				sprintf(text, "game time: %.1lf s", worldTime);
+				DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
+				gameover = 1;
+			}
+			else SnakeDraw(screen, snake); // update snake's position on the screen
 			moveTimer -= SNAKE_SPEED; // reset move timeout
 		}
 
@@ -289,20 +314,19 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 					quit = 1;
 					break;
 				case SDLK_UP:
-					snake->direction = UP;
+					if (snake->direction != DOWN) snake->direction = UP; // prevent the snake from turning back on itself
 					break;
 				case SDLK_DOWN:
-					snake->direction = DOWN;
+					if (snake->direction != UP) snake->direction = DOWN;
 					break;
 				case SDLK_LEFT:
-					snake->direction = LEFT;
+					if (snake->direction != RIGHT) snake->direction = LEFT;
 					break;
 				case SDLK_RIGHT:
-					snake->direction = RIGHT;
+					if (snake->direction != LEFT) snake->direction = RIGHT;
 					break;
 				}
 			}
-			
 		}
 		frames++;
 	}
