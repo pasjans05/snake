@@ -172,7 +172,7 @@ void WallCheck(snake_t* snake)
 	// bottom wall:
 	else if (snake->headY == SCREEN_HEIGHT - 2 * BLOCK_SIZE && snake->direction == DOWN)
 	{
-		if (snake->headX == 2 * BLOCK_SIZE)
+		if (snake->headX == BLOCK_SIZE)
 		{
 			snake->direction = Turn(snake->direction, LEFT);
 		}
