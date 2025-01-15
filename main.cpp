@@ -110,6 +110,91 @@ void SnakeDraw(SDL_Surface* screen, snake_t* snake)
 	DrawRect(screen, snake->tailX[snake->length - 1], snake->tailY[snake->length - 1], BLOCK_SIZE, BLOCK_SIZE, BLACK);
 }
 
+direction_t Turn(direction_t direction, direction_t rotation)
+{
+	if (rotation == LEFT)
+	{
+		switch (direction)
+		{
+		case UP:
+			return LEFT;
+		case DOWN:
+			return RIGHT;
+		case LEFT:
+			return DOWN;
+		case RIGHT:
+			return UP;
+		}
+	}
+	else if (rotation == RIGHT)
+	{
+		switch (direction)
+		{
+		case UP:
+			return RIGHT;
+		case DOWN:
+			return LEFT;
+		case LEFT:
+			return UP;
+		case RIGHT:
+			return DOWN;
+		}
+	}
+}
+
+void WallCheck(snake_t* snake)
+{
+	// top wall:
+	if (snake->headY == STATUSBAR_HEIGHT && snake->direction == UP)
+	{
+		// check if right turn is possible:
+		if (snake->headX == SCREEN_WIDTH - 2 * BLOCK_SIZE) // snake head is next to right wall (right turn is impossible)
+		{
+			snake->direction = Turn(snake->direction, LEFT);
+		}
+		else // right turn is possible
+		{
+			snake->direction = Turn(snake->direction, RIGHT);
+		}
+	}
+	// right wall:
+	else if (snake->headX == SCREEN_WIDTH - 2 * BLOCK_SIZE && snake->direction == RIGHT)
+	{
+		if (snake->headY == SCREEN_HEIGHT - 2 * BLOCK_SIZE)
+		{
+			snake->direction = Turn(snake->direction, LEFT);
+		}
+		else
+		{
+			snake->direction = Turn(snake->direction, RIGHT);
+		}
+	}
+	// bottom wall:
+	else if (snake->headY == SCREEN_HEIGHT - 2 * BLOCK_SIZE && snake->direction == DOWN)
+	{
+		if (snake->headX == 2 * BLOCK_SIZE)
+		{
+			snake->direction = Turn(snake->direction, LEFT);
+		}
+		else
+		{
+			snake->direction = Turn(snake->direction, RIGHT);
+		}
+	}
+	// left wall:
+	else if (snake->headX == BLOCK_SIZE && snake->direction == LEFT)
+	{
+		if (snake->headY == STATUSBAR_HEIGHT)
+		{
+			snake->direction = Turn(snake->direction, LEFT);
+		}
+		else
+		{
+			snake->direction = Turn(snake->direction, RIGHT);
+		}
+	}
+}
+
 void SnakeMove(snake_t* snake)
 {
 	for (int i = snake->length - 1; i > 0; i--)
@@ -165,16 +250,17 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 		DrawFrame(screen, BLUE); // clear status bar
 		sprintf(text, "elapsed time = %.1lf s     %.0lf frames / s", worldTime, fps);
 		DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
-		sprintf(text, "implemented requirements: 1");
+		sprintf(text, "implemented requirements: 12");
 		DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
 
 
 		// snake movement:
 		if (moveTimer > SNAKE_SPEED)
 		{
-			SnakeMove(snake);
-			SnakeDraw(screen, snake);
-			moveTimer -= SNAKE_SPEED;
+			WallCheck(snake); // check for collision with walls; adjust direction if necessary
+			SnakeMove(snake); // move the snake (update its position parameters)
+			SnakeDraw(screen, snake); // update snake's position on the screen
+			moveTimer -= SNAKE_SPEED; // reset move timeout
 		}
 
 		// screen refresh:
@@ -265,11 +351,6 @@ int main(int argc, char** argv)
 	SDL_SetColorKey(charset, 1, 0);
 
 	SDL_ShowCursor(SDL_DISABLE);
-
-	//int black = SDL_MapRGB(screenSurface->format, 0, 0, 0);
-	//int green = SDL_MapRGB(screenSurface->format, 0, 255, 0);
-	//int red = SDL_MapRGB(screenSurface->format, 255, 0, 0);
-	//int blue = SDL_MapRGB(screenSurface->format, 0, 0, 255); // Mr. Blue Sky
 
 	// ----------Game initialization:----------
 
