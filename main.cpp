@@ -1,13 +1,20 @@
 #include <stdio.h>
+#include <string.h>
 #include"./SDL2-2.0.10/include/SDL.h"
 #include"./SDL2-2.0.10/include/SDL_main.h"
 
 #define BLOCK_SIZE 8 // 8x8 pixel block - default block for characters and snake segments
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
-#define STATUSBAR_HEIGHT 36
+#define SCREEN_WIDTH 640 // [px], 80 blocks wide - when changed value should be divisible by BLOCK_SIZE
+#define SCREEN_HEIGHT 480 // [px], 60 blocks high - when changed value should be divisible by BLOCK_SIZE
+#define STATUSBAR_HEIGHT 40 // [px], 5 blocks high - status bar at the top of the screen
+
+#define BLUE 0x0000FF
+#define GREEN 0x00FF00
+#define RED 0xFF0000
+#define BLACK 0x000000
 
 #define INITIAL_SNAKE_LENGTH 5
+#define SNAKE_SPEED 0.5 // [s] per move
 
 enum direction_t {
 	UP,
@@ -96,10 +103,11 @@ snake_t* SnakeInit(int colour)
 void SnakeDraw(SDL_Surface* screen, snake_t* snake)
 {
 	DrawRect(screen, snake->headX, snake->headY, BLOCK_SIZE, BLOCK_SIZE, snake->colour);
-	for (int i = 0; i < snake->length; i++)
+	for (int i = 0; i < snake->length - 1; i++)
 	{
 		DrawRect(screen, snake->tailX[i], snake->tailY[i], BLOCK_SIZE, BLOCK_SIZE, snake->colour);
 	}
+	DrawRect(screen, snake->tailX[snake->length - 1], snake->tailY[snake->length - 1], BLOCK_SIZE, BLOCK_SIZE, BLACK);
 }
 
 void SnakeMove(snake_t* snake)
@@ -128,15 +136,15 @@ void SnakeMove(snake_t* snake)
 	}
 }
 
-void MainLoop(snake_t* snake)
+void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Texture* screenTexture, SDL_Renderer* renderer)
 {
 	int quit = 0;
 
 	// time management setup:
 	int t1, t2, frames;
-	double delta, worldTime, fpsTimer, fps;
+	double delta, worldTime, fpsTimer, fps, moveTimer;
 	t1 = SDL_GetTicks();
-	frames = 0; fpsTimer = 0; fps = 0; worldTime = 0;
+	frames = 0; fpsTimer = 0; fps = 0; worldTime = 0, moveTimer = 0;
 	
 	// game loop:
 	while (!quit)
@@ -145,8 +153,7 @@ void MainLoop(snake_t* snake)
 		t2 = SDL_GetTicks();
 		delta = (t2 - t1) * 0.001; // delta time in seconds
 		t1 = t2;
-		worldTime += delta;
-		fpsTimer += delta;
+		worldTime += delta; fpsTimer += delta; moveTimer += delta; // update timing variables
 		if (fpsTimer > 0.5) {
 			fps = frames * 2;
 			frames = 0;
@@ -154,9 +161,24 @@ void MainLoop(snake_t* snake)
 		}
 
 		// status bar:
-		// TODO: status bar update
+		char text[128];
+		DrawFrame(screen, BLUE); // clear status bar
+		sprintf(text, "elapsed time = %.1lf s     %.0lf frames / s", worldTime, fps);
+		DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
+		sprintf(text, "implemented requirements: 1");
+		DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
 
-		// TODO: snake movement update
+
+		// snake movement:
+		if (moveTimer > SNAKE_SPEED)
+		{
+			SnakeMove(snake);
+			SnakeDraw(screen, snake);
+			moveTimer -= SNAKE_SPEED;
+		}
+
+		// screen refresh:
+		RefreshScreen(screen, screenTexture, renderer);
 
 		// user input:
 		SDL_Event event;
@@ -174,7 +196,11 @@ void MainLoop(snake_t* snake)
 					quit = 1;
 					break;
 				case SDLK_n:
-					// TODO: new game
+					snake = SnakeInit(GREEN);
+					SDL_FillRect(screen, NULL, BLACK);
+					DrawFrame(screen, BLUE);
+					MainLoop(snake, screen, charset, screenTexture, renderer);
+					quit = 1;
 					break;
 				case SDLK_UP:
 					snake->direction = UP;
@@ -190,8 +216,9 @@ void MainLoop(snake_t* snake)
 					break;
 				}
 			}
-			frames++;
+			
 		}
+		frames++;
 	}
 }
 
@@ -239,26 +266,26 @@ int main(int argc, char** argv)
 
 	SDL_ShowCursor(SDL_DISABLE);
 
-	int black = SDL_MapRGB(screenSurface->format, 0, 0, 0);
-	int green = SDL_MapRGB(screenSurface->format, 0, 255, 0);
-	int red = SDL_MapRGB(screenSurface->format, 255, 0, 0);
-	int blue = SDL_MapRGB(screenSurface->format, 0, 0, 255); // Mr. Blue Sky
+	//int black = SDL_MapRGB(screenSurface->format, 0, 0, 0);
+	//int green = SDL_MapRGB(screenSurface->format, 0, 255, 0);
+	//int red = SDL_MapRGB(screenSurface->format, 255, 0, 0);
+	//int blue = SDL_MapRGB(screenSurface->format, 0, 0, 255); // Mr. Blue Sky
 
 	// ----------Game initialization:----------
 
-	SDL_FillRect(screenSurface, NULL, black);
-	DrawFrame(screenSurface, blue);
+	SDL_FillRect(screenSurface, NULL, BLACK);
+	DrawFrame(screenSurface, BLUE);
 
 	RefreshScreen(screenSurface, screenTexture, renderer);
 
-	snake_t* snake = SnakeInit(green);
+	snake_t* snake = SnakeInit(GREEN);
 
 	SnakeDraw(screenSurface, snake);
 	RefreshScreen(screenSurface, screenTexture, renderer);
 
 	// TODO: before-game status bar (press any key to start; input explanation)
 
-	MainLoop(snake);
+	MainLoop(snake, screenSurface, charset, screenTexture, renderer);
 
 	// ----------Game cleanup:----------
 
