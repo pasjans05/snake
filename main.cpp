@@ -106,24 +106,23 @@ int PointCollisionCheck(snake_t* snake, point_t* point)
 	return 0;
 }
 
-// initialize a point with a random position on the screen, avoiding collision with the snake; for first point initialization, passed_value should be 0
+// initialize a point with a random position on the screen, avoiding collision with the snake
 point_t* PointInit(snake_t* snake)
 {
 	point_t* point;
 	point = (point_t*)malloc(sizeof(point_t));
-	point->x = BLOCK_SIZE + RA(0, GAME_GRID_WIDTH) * BLOCK_SIZE;
-	point->y = STATUSBAR_HEIGHT + RA(0, GAME_GRID_HEIGHT) * BLOCK_SIZE;
-	while (PointCollisionCheck(snake, point)) // avoid spawning the point on the snake
+	point->x = BLOCK_SIZE + RA(0, GAME_GRID_WIDTH - 1) * BLOCK_SIZE;
+	point->y = STATUSBAR_HEIGHT + RA(0, GAME_GRID_HEIGHT - 1) * BLOCK_SIZE;
+	if (PointCollisionCheck(snake, point))
 	{
-		point->x = BLOCK_SIZE + RA(1, GAME_GRID_WIDTH) * BLOCK_SIZE;
-		point->y = STATUSBAR_HEIGHT + RA(1, GAME_GRID_HEIGHT) * BLOCK_SIZE;
+		point = PointInit(snake); // if the point collides with the snake, try again
 	}
 	return point;
 }
 
 void PointDraw(SDL_Surface* screen, point_t* point)
 {
-	DrawRect(screen, point->x, point->y, BLOCK_SIZE, BLOCK_SIZE, RED);
+	DrawRect(screen, point->x, point->y, BLOCK_SIZE, BLOCK_SIZE, BLUE);
 }
 
 snake_t* SnakeInit(int colour)
@@ -336,7 +335,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
 			sprintf(text, "points: %d", points);
 			DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), BLOCK_SIZE, text, charset);
-			
+
 			PointDraw(screen, point); // draw the point on the screen
 		}
 
