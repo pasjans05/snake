@@ -1,5 +1,7 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include"./SDL2-2.0.10/include/SDL.h"
 #include"./SDL2-2.0.10/include/SDL_main.h"
 
@@ -7,6 +9,8 @@
 #define SCREEN_WIDTH 640 // [px], 80 blocks wide - when changed value should be divisible by BLOCK_SIZE
 #define SCREEN_HEIGHT 480 // [px], 60 blocks high - when changed value should be divisible by BLOCK_SIZE
 #define STATUSBAR_HEIGHT 40 // [px], 5 blocks high - status bar at the top of the screen
+#define GAME_GRID_WIDTH ( ((SCREEN_WIDTH - 2 * BLOCK_SIZE) / BLOCK_SIZE) ) // number of blocks in the game grid width (excluding borders)
+#define GAME_GRID_HEIGHT ( ((SCREEN_HEIGHT - (BLOCK_SIZE + STATUSBAR_HEIGHT)) / BLOCK_SIZE) ) // number of blocks in the game grid height (excluding borders)
 
 #define BLUE 0x0000FF
 #define GREEN 0x00FF00
@@ -15,6 +19,8 @@
 
 #define INITIAL_SNAKE_LENGTH 5
 #define SNAKE_SPEED 0.5 // [s] per move
+
+#define RA(min, max) ( (min) + rand() % ((max) - (min) + 1) ) // random number between min and max (inc) - macro from 1st project demo game
 
 enum direction_t {
 	UP,
@@ -26,10 +32,14 @@ enum direction_t {
 typedef struct {
 	int headX, headY;
 	int length;
-	int *tailX, *tailY; // the last segment of the tail is used only for drawing purposes
+	int *tailX, *tailY;
 	int colour;
 	direction_t direction;
 } snake_t;
+
+typedef struct {
+	int x, y;
+} point_t;
 
 void RefreshScreen(SDL_Surface* screen, SDL_Texture* screenTexture, SDL_Renderer* renderer)
 {
@@ -79,6 +89,43 @@ void DrawFrame(SDL_Surface* screen, int colour)
 	DrawRect(screen, 0, SCREEN_HEIGHT - BLOCK_SIZE, SCREEN_WIDTH, BLOCK_SIZE, colour); // bottom border
 }
 
+// check if the point is colliding with the snake - return 1 if collision detected, 0 otherwise
+int PointCollisionCheck(snake_t* snake, point_t* point)
+{
+	if (snake->headX == point->x && snake->headY == point->y)
+	{
+		return 1;
+	}
+	for (int i = 0; i < snake->length; i++)
+	{
+		if (snake->tailX[i] == point->x && snake->tailY[i] == point->y)
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+
+// initialize a point with a random position on the screen, avoiding collision with the snake; for first point initialization, passed_value should be 0
+point_t* PointInit(snake_t* snake)
+{
+	point_t* point;
+	point = (point_t*)malloc(sizeof(point_t));
+	point->x = BLOCK_SIZE + RA(0, GAME_GRID_WIDTH) * BLOCK_SIZE;
+	point->y = STATUSBAR_HEIGHT + RA(0, GAME_GRID_HEIGHT) * BLOCK_SIZE;
+	while (PointCollisionCheck(snake, point)) // avoid spawning the point on the snake
+	{
+		point->x = BLOCK_SIZE + RA(1, GAME_GRID_WIDTH) * BLOCK_SIZE;
+		point->y = STATUSBAR_HEIGHT + RA(1, GAME_GRID_HEIGHT) * BLOCK_SIZE;
+	}
+	return point;
+}
+
+void PointDraw(SDL_Surface* screen, point_t* point)
+{
+	DrawRect(screen, point->x, point->y, BLOCK_SIZE, BLOCK_SIZE, RED);
+}
+
 snake_t* SnakeInit(int colour)
 {
 	snake_t* snake;
@@ -100,14 +147,26 @@ snake_t* SnakeInit(int colour)
 	return snake;
 }
 
-void SnakeDraw(SDL_Surface* screen, snake_t* snake)
+// helper function for drawing the snake on the screen in a given colour
+void SnakeDraw(SDL_Surface* screen, snake_t* snake, int colour)
 {
-	DrawRect(screen, snake->headX, snake->headY, BLOCK_SIZE, BLOCK_SIZE, snake->colour);
-	for (int i = 0; i < snake->length - 1; i++)
+	DrawRect(screen, snake->headX, snake->headY, BLOCK_SIZE, BLOCK_SIZE, colour);
+	for (int i = 0; i < snake->length; i++)
 	{
-		DrawRect(screen, snake->tailX[i], snake->tailY[i], BLOCK_SIZE, BLOCK_SIZE, snake->colour);
+		DrawRect(screen, snake->tailX[i], snake->tailY[i], BLOCK_SIZE, BLOCK_SIZE, colour);
 	}
-	DrawRect(screen, snake->tailX[snake->length - 1], snake->tailY[snake->length - 1], BLOCK_SIZE, BLOCK_SIZE, BLACK);
+}
+
+// draw the snake on the screen
+void SnakeAppear(SDL_Surface* screen, snake_t* snake)
+{
+	SnakeDraw(screen, snake, snake->colour);
+}
+
+// erase the snake from the screen
+void SnakeDisappear(SDL_Surface* screen, snake_t* snake)
+{
+	SnakeDraw(screen, snake, BLACK);
 }
 
 direction_t Turn(direction_t direction, direction_t rotation)
@@ -198,7 +257,7 @@ void WallCheck(snake_t* snake)
 // check whether the snake has collided with itself - return 1 if collision detected, 0 otherwise
 int SnakeCollisionCheck(snake_t* snake)
 {
-	for (int i = 0; i < snake->length - 1; i++) // note that the last segment of the tail is used only for drawing purposes
+	for (int i = 0; i < snake->length; i++)
 	{
 		if (snake->headX == snake->tailX[i] && snake->headY == snake->tailY[i])
 		{
@@ -210,7 +269,7 @@ int SnakeCollisionCheck(snake_t* snake)
 
 void SnakeMove(snake_t* snake)
 {
-	for (int i = snake->length - 1; i > 0; i--)
+	for (int i = snake->length; i > 0; i--)
 	{
 		snake->tailX[i] = snake->tailX[i - 1];
 		snake->tailY[i] = snake->tailY[i - 1];
@@ -245,6 +304,11 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 	double delta, worldTime, fpsTimer, fps, moveTimer;
 	t1 = SDL_GetTicks();
 	frames = 0; fpsTimer = 0; fps = 0; worldTime = 0, moveTimer = 0;
+
+	// point system:
+	int points = 0;
+	point_t* point = PointInit(snake);
+	
 	
 	// game loop:
 	while (!quit)
@@ -264,17 +328,34 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			
 			// status bar:
 			DrawFrame(screen, BLUE); // clear status bar
-			sprintf(text, "elapsed time = %.1lf s     %.0lf frames / s", worldTime, fps);
+			sprintf(text, "elapsed time = %.1lf s", worldTime);
 			DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
-			sprintf(text, "implemented requirements: 123");
+			sprintf(text, "%.0lf frames / s", fps);
+			DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), BLOCK_SIZE, text, charset);
+			sprintf(text, "implemented requirements: 1234A");
 			DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
+			sprintf(text, "points: %d", points);
+			DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), BLOCK_SIZE, text, charset);
+			
+			PointDraw(screen, point); // draw the point on the screen
 		}
 
 		// snake movement:
 		if (moveTimer > SNAKE_SPEED)
 		{
+			SnakeDisappear(screen, snake); // erase the snake at its previous position from the screen
 			WallCheck(snake); // check for collision with walls; adjust direction if necessary
 			SnakeMove(snake); // move the snake (update its position parameters)
+			if (PointCollisionCheck(snake, point)) // check for collision with the point
+			{
+				points++;
+				snake->length++;
+				snake->tailX = (int*)realloc(snake->tailX, snake->length * sizeof(int)); // snake lengthening
+				snake->tailY = (int*)realloc(snake->tailY, snake->length * sizeof(int));
+				snake->tailX[snake->length - 1] = snake->tailX[snake->length - 2]; // add a new segment to the tail
+				snake->tailY[snake->length - 1] = snake->tailY[snake->length - 2];
+				point = PointInit(snake); // spawn a new point
+			}
 			if (SnakeCollisionCheck(snake)) // check for collision with itself
 			{
 				DrawFrame(screen, BLUE);
@@ -282,9 +363,11 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 				DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 				sprintf(text, "game time: %.1lf s", worldTime);
 				DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
+				sprintf(text, "points: %d", points);
+				DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), 2 * BLOCK_SIZE, text, charset);
 				gameover = 1;
 			}
-			else SnakeDraw(screen, snake); // update snake's position on the screen
+			else SnakeAppear(screen, snake); // update snake's position on the screen
 			moveTimer -= SNAKE_SPEED; // reset move timeout
 		}
 
@@ -310,6 +393,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 					snake = SnakeInit(GREEN);
 					SDL_FillRect(screen, NULL, BLACK);
 					DrawFrame(screen, BLUE);
+					SnakeAppear(screen, snake);
 					MainLoop(snake, screen, charset, screenTexture, renderer);
 					quit = 1;
 					break;
@@ -334,6 +418,8 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 
 int main(int argc, char** argv)
 {
+	srand(time(NULL)); // seed for random number generation
+
 	int rc; // return code for window and renderer creation
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -385,7 +471,7 @@ int main(int argc, char** argv)
 
 	snake_t* snake = SnakeInit(GREEN);
 
-	SnakeDraw(screenSurface, snake);
+	SnakeAppear(screenSurface, snake);
 	RefreshScreen(screenSurface, screenTexture, renderer);
 
 	// TODO: before-game status bar (press any key to start; input explanation)
