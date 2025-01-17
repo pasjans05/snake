@@ -17,8 +17,13 @@
 #define RED 0xFF0000
 #define BLACK 0x000000
 
-#define INITIAL_SNAKE_LENGTH 5
-#define SNAKE_SPEED 0.5 // [s] per move
+#define INITIAL_SNAKE_LENGTH 5 // initial snake body length (head excluded)
+#define BASE_SNAKE_SPEED 0.3 // [s] per move
+#define MINIMAL_SNAKE_SPEED 0.04 // [s] per move
+
+#define SPEED_INCREASE 0.01 // [s] - not used in this version
+#define SPEED_CHANGE_INTERVAL 10 // [s] how often the snake speed increases
+#define SPEED_INCREASE_FACTOR 0.1 // by how much of the previous value the snake speed increases
 
 #define RA(min, max) ( (min) + rand() % ((max) - (min) + 1) ) // random number between min and max (inc) - macro from 1st project demo game
 
@@ -34,6 +39,7 @@ typedef struct {
 	int length;
 	int *tailX, *tailY;
 	int colour;
+	double speed;
 	direction_t direction;
 } snake_t;
 
@@ -131,6 +137,7 @@ snake_t* SnakeInit(int colour)
 	snake = (snake_t*)malloc(sizeof(snake_t));
 	snake->colour = colour;
 	snake->direction = UP;
+	snake->speed = BASE_SNAKE_SPEED;
 	snake->headX = SCREEN_WIDTH / 2;
 	snake->headY = SCREEN_HEIGHT / 2;
 	snake->length = INITIAL_SNAKE_LENGTH;
@@ -300,9 +307,9 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 
 	// time management setup:
 	int t1, t2, frames;
-	double delta, worldTime, fpsTimer, fps, moveTimer;
+	double delta, worldTime, fpsTimer, fps, moveTimer, speedupTimer;
 	t1 = SDL_GetTicks();
-	frames = 0; fpsTimer = 0; fps = 0; worldTime = 0, moveTimer = 0;
+	frames = 0; fpsTimer = 0; fps = 0; worldTime = 0; moveTimer = 0; speedupTimer = 0;
 
 	// point system:
 	int points = 0;
@@ -318,11 +325,19 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			t2 = SDL_GetTicks();
 			delta = (t2 - t1) * 0.001; // delta time in seconds
 			t1 = t2;
-			worldTime += delta; fpsTimer += delta; moveTimer += delta; // update timing variables
+			worldTime += delta; fpsTimer += delta; moveTimer += delta; speedupTimer += delta; // update timing variables
 			if (fpsTimer > 0.5) {
 				fps = frames * 2;
 				frames = 0;
 				fpsTimer -= 0.5;
+			}
+			if (speedupTimer > SPEED_CHANGE_INTERVAL && snake->speed > MINIMAL_SNAKE_SPEED)
+			{
+				// speed increase by a fixed amount (unused):
+				// snake->speed -= SPEED_INCREASE;
+				// speed increase by a factor of the previous value:
+				snake->speed -= SPEED_INCREASE_FACTOR * snake->speed;
+				speedupTimer -= SPEED_CHANGE_INTERVAL;
 			}
 			
 			// status bar:
@@ -330,8 +345,11 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			sprintf(text, "elapsed time = %.1lf s", worldTime);
 			DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 			sprintf(text, "%.0lf frames / s", fps);
+			// display current snake speed (for debugging):
+			// sprintf(text, "snake moves 8 blocks per %.2lf s", snake->speed);
+			// DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), 3 * BLOCK_SIZE, text, charset);
 			DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), BLOCK_SIZE, text, charset);
-			sprintf(text, "implemented requirements: 1234A");
+			sprintf(text, "implemented requirements: 1234AB");
 			DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
 			sprintf(text, "points: %d", points);
 			DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), BLOCK_SIZE, text, charset);
@@ -340,7 +358,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 		}
 
 		// snake movement:
-		if (moveTimer > SNAKE_SPEED)
+		if (moveTimer > snake->speed)
 		{
 			SnakeDisappear(screen, snake); // erase the snake at its previous position from the screen
 			WallCheck(snake); // check for collision with walls; adjust direction if necessary
@@ -367,7 +385,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 				gameover = 1;
 			}
 			else SnakeAppear(screen, snake); // update snake's position on the screen
-			moveTimer -= SNAKE_SPEED; // reset move timeout
+			moveTimer -= snake->speed; // reset move timeout
 		}
 
 		// screen refresh:
