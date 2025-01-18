@@ -487,7 +487,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			{
 				quit = 1;
 			}
-			else if (event.type == SDL_KEYDOWN && inputProcessed)
+			else if (event.type == SDL_KEYDOWN)
 			{
 				switch (event.key.keysym.sym)
 				{
@@ -503,28 +503,28 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 					quit = 1;
 					break;
 				case SDLK_UP:
-					if (snake->direction != DOWN)
+					if (snake->direction != DOWN && inputProcessed)
 					{
 						snake->direction = UP; // prevent the snake from turning back on itself
 						inputProcessed = 0;
 					}
 					break;
 				case SDLK_DOWN:
-					if (snake->direction != UP)
+					if (snake->direction != UP && inputProcessed)
 					{
 						snake->direction = DOWN;
 						inputProcessed = 0;
 					}
 					break;
 				case SDLK_LEFT:
-					if (snake->direction != RIGHT)
+					if (snake->direction != RIGHT && inputProcessed)
 					{
 						snake->direction = LEFT;
 						inputProcessed = 0;
 					}
 					break;
 				case SDLK_RIGHT:
-					if (snake->direction != LEFT)
+					if (snake->direction != LEFT && inputProcessed)
 					{
 						snake->direction = RIGHT;
 						inputProcessed = 0;
