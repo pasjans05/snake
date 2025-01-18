@@ -8,7 +8,7 @@
 #define BLOCK_SIZE 8 // 8x8 pixel block - default block for characters and snake segments
 #define SCREEN_WIDTH 640 // [px], 80 blocks wide - when changed value should be divisible by BLOCK_SIZE
 #define SCREEN_HEIGHT 480 // [px], 60 blocks high - when changed value should be divisible by BLOCK_SIZE
-#define STATUSBAR_HEIGHT 56 // [px], 5 blocks high - status bar at the top of the screen
+#define STATUSBAR_HEIGHT 56 // [px], 7 blocks high - status bar at the top of the screen
 #define GAME_GRID_WIDTH ( ((SCREEN_WIDTH - 2 * BLOCK_SIZE) / BLOCK_SIZE) ) // number of blocks in the game grid width (excluding borders)
 #define GAME_GRID_HEIGHT ( ((SCREEN_HEIGHT - (BLOCK_SIZE + STATUSBAR_HEIGHT)) / BLOCK_SIZE) ) // number of blocks in the game grid height (excluding borders)
 
@@ -341,6 +341,7 @@ void SnakeMove(snake_t* snake)
 void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Texture* screenTexture, SDL_Renderer* renderer)
 {
 	int quit = 0;
+	int inputProcessed = 1; // avoid multiple movement inputs in one frame
 	char text[128];
 	int gameover = 0; // variable to trigger game over mode (no snake movement, only n and Esc inputs accepted)
 
@@ -467,6 +468,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			}
 			else SnakeAppear(screen, snake); // update snake's position on the screen
 			moveTimer -= snake->speed; // reset move timeout
+			inputProcessed = 1; // reset input processing variable
 		}
 
 		// screen refresh:
@@ -480,7 +482,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			{
 				quit = 1;
 			}
-			else if (event.type == SDL_KEYDOWN)
+			else if (event.type == SDL_KEYDOWN && inputProcessed)
 			{
 				switch (event.key.keysym.sym)
 				{
@@ -496,16 +498,32 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 					quit = 1;
 					break;
 				case SDLK_UP:
-					if (snake->direction != DOWN) snake->direction = UP; // prevent the snake from turning back on itself
+					if (snake->direction != DOWN)
+					{
+						snake->direction = UP; // prevent the snake from turning back on itself
+						inputProcessed = 0;
+					}
 					break;
 				case SDLK_DOWN:
-					if (snake->direction != UP) snake->direction = DOWN;
+					if (snake->direction != UP)
+					{
+						snake->direction = DOWN;
+						inputProcessed = 0;
+					}
 					break;
 				case SDLK_LEFT:
-					if (snake->direction != RIGHT) snake->direction = LEFT;
+					if (snake->direction != RIGHT)
+					{
+						snake->direction = LEFT;
+						inputProcessed = 0;
+					}
 					break;
 				case SDLK_RIGHT:
-					if (snake->direction != LEFT) snake->direction = RIGHT;
+					if (snake->direction != LEFT)
+					{
+						snake->direction = RIGHT;
+						inputProcessed = 0;
+					}
 					break;
 				}
 			}
