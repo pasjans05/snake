@@ -98,12 +98,13 @@ void DrawString(SDL_Surface* screen, int x, int y, const char* text, SDL_Surface
 	}
 }
 
-void DrawFrame(SDL_Surface* screen, int colour)
+void DrawFrame(SDL_Surface* screen, SDL_Surface* charset, int colour)
 {
 	DrawRect(screen, 0, 0, SCREEN_WIDTH, STATUSBAR_HEIGHT, colour); // status bar
 	DrawRect(screen, 0, STATUSBAR_HEIGHT, BLOCK_SIZE, SCREEN_HEIGHT, colour); // left border
 	DrawRect(screen, SCREEN_WIDTH - BLOCK_SIZE, STATUSBAR_HEIGHT, BLOCK_SIZE, SCREEN_HEIGHT, colour); // right border
 	DrawRect(screen, 0, SCREEN_HEIGHT - BLOCK_SIZE, SCREEN_WIDTH, BLOCK_SIZE, colour); // bottom border
+	DrawString(screen, 2 * BLOCK_SIZE, SCREEN_HEIGHT - BLOCK_SIZE, "Stanislaw Kardas 203880", charset); // myself, the author
 }
 
 // check if the point is colliding with the snake - return 1 if collision detected, 0 otherwise
@@ -394,7 +395,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			}
 			
 			// status bar:
-			DrawFrame(screen, BLUE); // clear status bar
+			DrawFrame(screen, charset, BLUE); // clear status bar
 			sprintf(text, "elapsed time = %.1lf s", worldTime);
 			DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 			sprintf(text, "%.0lf frames / s", fps);
@@ -463,7 +464,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			}
 			if (SnakeCollisionCheck(snake)) // check for collision with itself
 			{
-				DrawFrame(screen, BLUE);
+				DrawFrame(screen, charset, BLUE);
 				sprintf(text, "GAME OVER! Press 'n' to start a new game, press 'Esc' to exit.");
 				DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 				sprintf(text, "game time: %.1lf s", worldTime);
@@ -497,7 +498,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 				case SDLK_n:
 					snake = SnakeInit(GREEN);
 					SDL_FillRect(screen, NULL, BLACK);
-					DrawFrame(screen, BLUE);
+					DrawFrame(screen, charset, BLUE);
 					SnakeAppear(screen, snake);
 					MainLoop(snake, screen, charset, screenTexture, renderer);
 					quit = 1;
@@ -586,7 +587,7 @@ int main(int argc, char** argv)
 	// ----------Game initialization:----------
 
 	SDL_FillRect(screenSurface, NULL, BLACK);
-	DrawFrame(screenSurface, BLUE);
+	DrawFrame(screenSurface, charset, BLUE);
 
 	RefreshScreen(screenSurface, screenTexture, renderer);
 
