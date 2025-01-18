@@ -435,6 +435,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			SnakeDisappear(screen, snake); // erase the snake at its previous position from the screen
 			WallCheck(snake); // check for collision with walls; adjust direction if necessary
 			SnakeMove(snake); // move the snake (update its position parameters)
+			inputProcessed = 1; // reset input processing variable
 			if (PointCollisionCheck(snake, point)) // check for collision with the point
 			{
 				points += BLUE_POINT; // add points for collecting the point
@@ -473,7 +474,6 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			}
 			else SnakeAppear(screen, snake); // update snake's position on the screen
 			moveTimer -= snake->speed; // reset move timeout
-			inputProcessed = 1; // reset input processing variable
 		}
 
 		// screen refresh:
