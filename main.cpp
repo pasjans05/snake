@@ -1,3 +1,4 @@
+// to run the program, substitute the main.cpp file in the helper program project folder with this one
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +21,9 @@
 #define INITIAL_SNAKE_LENGTH 5 // initial snake body length (head excluded)
 #define BASE_SNAKE_SPEED 0.3 // [s] per move
 #define MINIMAL_SNAKE_SPEED 0.04 // [s] per move
+
+#define BLUE_POINT 1 // points for blue point
+#define RED_POINT 10 // points for red point
 
 #define SPEED_INCREASE 0.01 // [s] - not used in this version
 #define SPEED_CHANGE_INTERVAL 10 // [s] how often the snake speed increases
@@ -398,7 +402,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			// display current snake speed (for debugging):
 			// sprintf(text, "snake moves 8 blocks per %.2lf s", snake->speed);
 			// DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE), 3 * BLOCK_SIZE, text, charset);
-			sprintf(text, "implemented requirements: 1234ABC");
+			sprintf(text, "implemented requirements: 1234ABCD");
 			DrawString(screen, BLOCK_SIZE, 3*BLOCK_SIZE, text, charset);
 			sprintf(text, "points: %d", points);
 			DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), BLOCK_SIZE, text, charset);
@@ -433,7 +437,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			SnakeMove(snake); // move the snake (update its position parameters)
 			if (PointCollisionCheck(snake, point)) // check for collision with the point
 			{
-				points++;
+				points += BLUE_POINT; // add points for collecting the point
 				snake->length++;
 				snake->tailX = (int*)realloc(snake->tailX, snake->length * sizeof(int)); // snake lengthening
 				snake->tailY = (int*)realloc(snake->tailY, snake->length * sizeof(int));
@@ -446,6 +450,7 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			{
 				// bonus point action:
 				BonusAction(snake);
+				points += RED_POINT; // add points for collecting the bonus point
 
 				// generate new bonus point appear time:
 				bonusTimer = 0;
