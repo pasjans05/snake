@@ -8,7 +8,7 @@
 #define BLOCK_SIZE 8 // 8x8 pixel block - default block for characters and snake segments
 #define SCREEN_WIDTH 640 // [px], 80 blocks wide - when changed value should be divisible by BLOCK_SIZE
 #define SCREEN_HEIGHT 480 // [px], 60 blocks high - when changed value should be divisible by BLOCK_SIZE
-#define STATUSBAR_HEIGHT 40 // [px], 5 blocks high - status bar at the top of the screen
+#define STATUSBAR_HEIGHT 56 // [px], 5 blocks high - status bar at the top of the screen
 #define GAME_GRID_WIDTH ( ((SCREEN_WIDTH - 2 * BLOCK_SIZE) / BLOCK_SIZE) ) // number of blocks in the game grid width (excluding borders)
 #define GAME_GRID_HEIGHT ( ((SCREEN_HEIGHT - (BLOCK_SIZE + STATUSBAR_HEIGHT)) / BLOCK_SIZE) ) // number of blocks in the game grid height (excluding borders)
 
@@ -24,6 +24,13 @@
 #define SPEED_INCREASE 0.01 // [s] - not used in this version
 #define SPEED_CHANGE_INTERVAL 10 // [s] how often the snake speed increases
 #define SPEED_INCREASE_FACTOR 0.1 // by how much of the previous value the snake speed increases
+
+#define MIN_BONUS_APPEAR_INTERVAL 10 // [s] minimum time between bonus point appearances
+#define MAX_BONUS_APPEAR_INTERVAL 30 // [s] maximum time between bonus point appearances
+#define BONUS_DURATION 10 // [s] for how long the bonus point appears on the screen
+#define BONUS_SLOWDOWN_FACTOR 0.2 // by how much of the previous value the snake speed decreases when the bonus point is collected
+#define BONUS_SHORTEN 2 // by how many segments the snake is shortened when the bonus point is collected
+#define BONUS_PROGRESSBAR_LENGTH 20 // [blocks] length of the bonus point progress bar
 
 #define RA(min, max) ( (min) + rand() % ((max) - (min) + 1) ) // random number between min and max (inc) - macro from 1st project demo game
 
@@ -126,9 +133,41 @@ point_t* PointInit(snake_t* snake)
 	return point;
 }
 
-void PointDraw(SDL_Surface* screen, point_t* point)
+void PointDraw(SDL_Surface* screen, point_t* point, int colour)
 {
-	DrawRect(screen, point->x, point->y, BLOCK_SIZE, BLOCK_SIZE, BLUE);
+	DrawRect(screen, point->x, point->y, BLOCK_SIZE, BLOCK_SIZE, colour);
+}
+
+void BonusAction(snake_t* snake)
+{
+	int bonusAction = RA(0, 1); // random bonus action out of the two possible
+	switch (bonusAction)
+	{
+	case 0:
+		// shorten the snake
+		if (snake->length > INITIAL_SNAKE_LENGTH + BONUS_SHORTEN) // prevent the snake from shortening below initial (minimal) length
+		{
+			snake->length -= BONUS_SHORTEN;
+			snake->tailX = (int*)realloc(snake->tailX, snake->length * sizeof(int)); // snake shortening
+			snake->tailY = (int*)realloc(snake->tailY, snake->length * sizeof(int));
+			break;
+		}
+		else bonusAction = 1; // if the snake is too short, perform the other bonus action
+	case 1:
+		// speed up the snake
+		snake->speed += snake->speed * BONUS_SLOWDOWN_FACTOR;
+		break;
+	}
+}
+
+void BonusProgressBar(SDL_Surface* screen, SDL_Surface* charset, double bonusTimer)
+{
+	char text[128];
+	sprintf(text, "BONUS:");
+	int length = BONUS_PROGRESSBAR_LENGTH * BLOCK_SIZE + strlen(text) * BLOCK_SIZE;
+	DrawString(screen, SCREEN_WIDTH / 2 - length / 2, 5 * BLOCK_SIZE, text, charset);
+	DrawRect(screen, SCREEN_WIDTH / 2 - length / 2 + strlen(text) * BLOCK_SIZE, 5 * BLOCK_SIZE, BONUS_PROGRESSBAR_LENGTH * BLOCK_SIZE, BLOCK_SIZE, BLACK); // progress bar background
+	DrawRect(screen, SCREEN_WIDTH / 2 - length / 2 + strlen(text) * BLOCK_SIZE, 5 * BLOCK_SIZE, (int)(BONUS_PROGRESSBAR_LENGTH * BLOCK_SIZE * (bonusTimer / BONUS_DURATION)), BLOCK_SIZE, RED); // progress bar
 }
 
 snake_t* SnakeInit(int colour)
@@ -314,7 +353,12 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 	// point system:
 	int points = 0;
 	point_t* point = PointInit(snake);
-	
+	PointDraw(screen, point, BLUE);
+
+	// bonus point system:
+	double bonusTimer = 0;
+	double bonusAppearTime = RA(MIN_BONUS_APPEAR_INTERVAL, MAX_BONUS_APPEAR_INTERVAL);
+	point_t* bonusPoint = NULL;
 	
 	// game loop:
 	while (!quit)
@@ -325,12 +369,16 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			t2 = SDL_GetTicks();
 			delta = (t2 - t1) * 0.001; // delta time in seconds
 			t1 = t2;
-			worldTime += delta; fpsTimer += delta; moveTimer += delta; speedupTimer += delta; // update timing variables
+			worldTime += delta; fpsTimer += delta; moveTimer += delta; speedupTimer += delta; bonusTimer += delta; // update timing variables
+			
+			// fps calculations:
 			if (fpsTimer > 0.5) {
 				fps = frames * 2;
 				frames = 0;
 				fpsTimer -= 0.5;
 			}
+
+			// snake speed increase:
 			if (speedupTimer > SPEED_CHANGE_INTERVAL && snake->speed > MINIMAL_SNAKE_SPEED)
 			{
 				// speed increase by a fixed amount (unused):
@@ -345,16 +393,35 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 			sprintf(text, "elapsed time = %.1lf s", worldTime);
 			DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 			sprintf(text, "%.0lf frames / s", fps);
+			DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), BLOCK_SIZE, text, charset);
 			// display current snake speed (for debugging):
 			// sprintf(text, "snake moves 8 blocks per %.2lf s", snake->speed);
-			// DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), 3 * BLOCK_SIZE, text, charset);
-			DrawString(screen, SCREEN_WIDTH / 2 - (strlen(text) * BLOCK_SIZE / 2), BLOCK_SIZE, text, charset);
-			sprintf(text, "implemented requirements: 1234AB");
-			DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
+			// DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE), 3 * BLOCK_SIZE, text, charset);
+			sprintf(text, "implemented requirements: 1234ABC");
+			DrawString(screen, BLOCK_SIZE, 3*BLOCK_SIZE, text, charset);
 			sprintf(text, "points: %d", points);
 			DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), BLOCK_SIZE, text, charset);
 
-			PointDraw(screen, point); // draw the point on the screen
+			// bonus point system:
+			if (bonusPoint == NULL && bonusTimer > bonusAppearTime)
+			{
+				bonusPoint = PointInit(snake);
+				PointDraw(screen, bonusPoint, RED);
+				bonusTimer = 0;
+			}
+			else if (bonusPoint != NULL && bonusTimer > BONUS_DURATION)
+			{
+				// delete the bonus point:
+				PointDraw(screen, bonusPoint, BLACK);
+				free(bonusPoint);
+				bonusPoint = NULL;
+				bonusTimer = 0;
+			}
+			else if (bonusPoint != NULL)
+			{
+				// progress bar for the bonus point duration:
+				BonusProgressBar(screen, charset, bonusTimer);
+			}
 		}
 
 		// snake movement:
@@ -372,6 +439,20 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 				snake->tailX[snake->length - 1] = snake->tailX[snake->length - 2]; // add a new segment to the tail
 				snake->tailY[snake->length - 1] = snake->tailY[snake->length - 2];
 				point = PointInit(snake); // spawn a new point
+				PointDraw(screen, point, BLUE); // draw the point on the screen
+			}
+			if (bonusPoint != NULL && PointCollisionCheck(snake, bonusPoint)) // check for collision with the bonus point
+			{
+				// bonus point action:
+				BonusAction(snake);
+
+				// generate new bonus point appear time:
+				bonusTimer = 0;
+				bonusAppearTime = RA(MIN_BONUS_APPEAR_INTERVAL, MAX_BONUS_APPEAR_INTERVAL);
+
+				// delete the bonus point:
+				free(bonusPoint);
+				bonusPoint = NULL;
 			}
 			if (SnakeCollisionCheck(snake)) // check for collision with itself
 			{
@@ -379,9 +460,9 @@ void MainLoop(snake_t* snake, SDL_Surface* screen, SDL_Surface* charset, SDL_Tex
 				sprintf(text, "GAME OVER! Press 'n' to start a new game, press 'Esc' to exit.");
 				DrawString(screen, BLOCK_SIZE, BLOCK_SIZE, text, charset);
 				sprintf(text, "game time: %.1lf s", worldTime);
-				DrawString(screen, BLOCK_SIZE, 2*BLOCK_SIZE, text, charset);
+				DrawString(screen, BLOCK_SIZE, 3*BLOCK_SIZE, text, charset);
 				sprintf(text, "points: %d", points);
-				DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), 2 * BLOCK_SIZE, text, charset);
+				DrawString(screen, SCREEN_WIDTH - (strlen(text) * BLOCK_SIZE + BLOCK_SIZE), 3 * BLOCK_SIZE, text, charset);
 				gameover = 1;
 			}
 			else SnakeAppear(screen, snake); // update snake's position on the screen
